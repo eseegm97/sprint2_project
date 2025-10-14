@@ -1,0 +1,36 @@
+.toolbar {
+    display: grid;
+    /* position at the top and center horizontally */
+    position: fixed;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+
+    /* grid layout - adjust columns as needed */
+    grid-auto-flow: column;
+    grid-auto-columns: auto;
+    gap: 0.5rem;
+
+    /* visual styling */
+    padding: 0.5rem 1rem;
+    background: rgba(255, 255, 255, 0.9); /* semi-transparent background */
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+    border-radius: 0 0 6px 6px;
+    z-index: 1000;
+
+    /* make sure toolbar content is vertically centered */
+    align-items: center;
+    justify-content: center;
+}
+
+/* responsive: allow toolbar to wrap onto multiple rows on small screens */
+@media (max-width: 480px) {
+    .toolbar {
+        left: 8px;
+        right: 8px;
+        transform: none;
+        width: auto;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+    }
+}
