@@ -29,5 +29,5 @@ I used the TypeScript language to build the backbone of the app; in addition to 
 {Make a list of things that you need to fix, improve, and add in the future.}
 
 - I need to create an "erase" option for the user, so that they can erase bits of their work freehand, rather than deleting whole chunks with the "undo" button.
-- The canvas cuts off a bit at the bottom, and doesn't allow the user to draw all the way down the screen.
 - I want to include a larger library of tools and shapes so that the user has more to work with than just a simple line.
+- I need to make the program responsive to a variety of different screen sizes and dimensions.
