@@ -4,6 +4,11 @@ class DrawingApp {
         this.isDrawing = false;
         this.currentColor = '#000000';
         this.currentLineWidth = 5;
+        // Undo/redo stacks
+        this.undoStack = [];
+        this.redoStack = [];
+        this.maxHistory = 10;
+        this.debug = true;
         this.canvas = document.getElementById('drawingCanvas');
         this.context = this.canvas.getContext('2d');
         this.setupCanvas();
@@ -32,11 +37,23 @@ class DrawingApp {
             this.context.lineWidth = this.currentLineWidth;
         });
         document.getElementById('clearBtn')?.addEventListener('click', this.clearCanvas.bind(this));
+        document.getElementById('undoBtn')?.addEventListener('click', this.undo.bind(this));
+        document.getElementById('redoBtn')?.addEventListener('click', this.redo.bind(this));
+        document.getElementById('fractalBtn')?.addEventListener('click', () => {
+            this.log('Fractal button clicked');
+            // snapshot before programmatic change
+            this.snapshot();
+            this.drawFractal(this.canvas.width / 2, this.canvas.height / 2, Math.min(this.canvas.width, this.canvas.height) * 0.25, 6);
+        });
+        document.getElementById('saveBtn')?.addEventListener('click', () => this.saveCanvas());
+        document.getElementById('loadBtn')?.addEventListener('click', () => document.getElementById('loadInput').click());
+        document.getElementById('loadInput')?.addEventListener('change', (e) => this.loadFromFile(e));
     }
     startDrawing(event) {
         this.isDrawing = true;
         this.context.beginPath();
         this.context.moveTo(event.offsetX, event.offsetY);
+        this.log('startDrawing', event.offsetX, event.offsetY);
     }
     draw(event) {
         if (!this.isDrawing)
@@ -47,13 +64,127 @@ class DrawingApp {
     stopDrawing() {
         this.isDrawing = false;
         this.context.closePath();
+        this.log('stopDrawing');
+        // Save snapshot for undo
+        this.snapshot();
     }
     clearCanvas() {
         this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.log('clearCanvas');
+        this.snapshot();
     }
     loadControls() {
         document.getElementById('color').value = this.currentColor;
         document.getElementById('lineWidth').value = this.currentLineWidth.toString();
+    }
+    // Simple logger (respects debug flag)
+    log(...args) {
+        if (this.debug)
+            console.log('[DrawingApp]', ...args);
+    }
+    // Snapshot/undo/redo
+    snapshot() {
+        try {
+            const data = this.context.getImageData(0, 0, this.canvas.width, this.canvas.height);
+            this.undoStack.push(data);
+            if (this.undoStack.length > this.maxHistory)
+                this.undoStack.shift();
+            // clear redo on new action
+            this.redoStack = [];
+            this.log('snapshot saved, undoSize=', this.undoStack.length);
+        }
+        catch (e) {
+            this.log('snapshot failed:', e);
+        }
+    }
+    undo() {
+        if (this.undoStack.length === 0) {
+            this.log('undo: no history');
+            return;
+        }
+        const last = this.undoStack.pop();
+        try {
+            const current = this.context.getImageData(0, 0, this.canvas.width, this.canvas.height);
+            this.redoStack.push(current);
+            this.context.putImageData(last, 0, 0);
+            this.log('undo performed, undoSize=', this.undoStack.length, 'redoSize=', this.redoStack.length);
+        }
+        catch (e) {
+            this.log('undo failed:', e);
+        }
+    }
+    redo() {
+        if (this.redoStack.length === 0) {
+            this.log('redo: no history');
+            return;
+        }
+        const next = this.redoStack.pop();
+        try {
+            const current = this.context.getImageData(0, 0, this.canvas.width, this.canvas.height);
+            this.undoStack.push(current);
+            this.context.putImageData(next, 0, 0);
+            this.log('redo performed, undoSize=', this.undoStack.length, 'redoSize=', this.redoStack.length);
+        }
+        catch (e) {
+            this.log('redo failed:', e);
+        }
+    }
+    // Recursive fractal (simple nested circles)
+    drawFractal(x, y, size, depth) {
+        if (depth <= 0 || size < 1)
+            return;
+        this.context.beginPath();
+        this.context.strokeStyle = this.currentColor;
+        this.context.lineWidth = Math.max(1, this.currentLineWidth * (depth / 6));
+        this.context.arc(x, y, size, 0, Math.PI * 2);
+        this.context.stroke();
+        this.context.closePath();
+        // recursive calls
+        this.drawFractal(x + size * 0.6, y, size * 0.5, depth - 1);
+        this.drawFractal(x - size * 0.6, y, size * 0.5, depth - 1);
+        this.drawFractal(x, y + size * 0.6, size * 0.5, depth - 1);
+        this.drawFractal(x, y - size * 0.6, size * 0.5, depth - 1);
+    }
+    // Async save: offer download of PNG
+    async saveCanvas() {
+        this.log('saveCanvas: starting');
+        const blob = await new Promise(resolve => this.canvas.toBlob(resolve, 'image/png'));
+        if (!blob) {
+            this.log('saveCanvas: toBlob returned null');
+            return;
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'drawing.png';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        this.log('saveCanvas: download triggered');
+    }
+    // Load from file input
+    async loadFromFile(e) {
+        const input = e.target;
+        if (!input.files || input.files.length === 0)
+            return;
+        const file = input.files[0];
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+            // snapshot before replace
+            this.snapshot();
+            this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            this.context.drawImage(img, 0, 0, this.canvas.width, this.canvas.height);
+            URL.revokeObjectURL(url);
+            input.value = '';
+            this.log('loadFromFile: image loaded');
+        };
+        img.onerror = (err) => {
+            this.log('loadFromFile: load error', err);
+            URL.revokeObjectURL(url);
+        };
+        img.src = url;
     }
 }
 new DrawingApp();
