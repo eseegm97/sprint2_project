@@ -4,7 +4,6 @@ class DrawingApp {
     private isDrawing: boolean = false;
     private currentColor: string = '#000000';
     private currentLineWidth: number = 5;
-    // Undo/redo stacks
     private undoStack: ImageData[] = [];
     private redoStack: ImageData[] = [];
     private maxHistory: number = 10;
@@ -49,7 +48,6 @@ class DrawingApp {
         document.getElementById('redoBtn')?.addEventListener('click', this.redo.bind(this));
         document.getElementById('fractalBtn')?.addEventListener('click', () => {
             this.log('Fractal button clicked');
-            // snapshot before programmatic change
             this.snapshot();
             this.drawFractal(this.canvas.width / 2, this.canvas.height / 2, Math.min(this.canvas.width, this.canvas.height) * 0.25, 6);
         });
@@ -75,7 +73,6 @@ class DrawingApp {
         this.isDrawing = false;
         this.context.closePath();
         this.log('stopDrawing');
-        // Save snapshot for undo
         this.snapshot();
     }
 
@@ -90,18 +87,15 @@ class DrawingApp {
         (document.getElementById('lineWidth') as HTMLInputElement).value = this.currentLineWidth.toString();
     }
 
-    // Simple logger (respects debug flag)
     private log(...args: any[]) {
         if (this.debug) console.log('[DrawingApp]', ...args);
     }
 
-    // Snapshot/undo/redo
     private snapshot(): void {
         try {
             const data = this.context.getImageData(0, 0, this.canvas.width, this.canvas.height);
             this.undoStack.push(data);
             if (this.undoStack.length > this.maxHistory) this.undoStack.shift();
-            // clear redo on new action
             this.redoStack = [];
             this.log('snapshot saved, undoSize=', this.undoStack.length);
         } catch (e) {
@@ -141,7 +135,6 @@ class DrawingApp {
         }
     }
 
-    // Recursive fractal (simple nested circles)
     private drawFractal(x: number, y: number, size: number, depth: number): void {
         if (depth <= 0 || size < 1) return;
         this.context.beginPath();
@@ -150,14 +143,12 @@ class DrawingApp {
         this.context.arc(x, y, size, 0, Math.PI * 2);
         this.context.stroke();
         this.context.closePath();
-        // recursive calls
         this.drawFractal(x + size * 0.6, y, size * 0.5, depth - 1);
         this.drawFractal(x - size * 0.6, y, size * 0.5, depth - 1);
         this.drawFractal(x, y + size * 0.6, size * 0.5, depth - 1);
         this.drawFractal(x, y - size * 0.6, size * 0.5, depth - 1);
     }
 
-    // Async save: offer download of PNG
     private async saveCanvas(): Promise<void> {
         this.log('saveCanvas: starting');
         const blob: Blob | null = await new Promise(resolve => this.canvas.toBlob(resolve, 'image/png'));
@@ -176,7 +167,6 @@ class DrawingApp {
         this.log('saveCanvas: download triggered');
     }
 
-    // Load from file input
     private async loadFromFile(e: Event | any): Promise<void> {
         const input = e.target as HTMLInputElement;
         if (!input.files || input.files.length === 0) return;
@@ -184,7 +174,6 @@ class DrawingApp {
         const img = new Image();
         const url = URL.createObjectURL(file);
         img.onload = () => {
-            // snapshot before replace
             this.snapshot();
             this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
             this.context.drawImage(img, 0, 0, this.canvas.width, this.canvas.height);
@@ -201,4 +190,3 @@ class DrawingApp {
 }
 
 new DrawingApp();
-
